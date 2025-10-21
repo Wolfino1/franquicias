@@ -5,8 +5,10 @@ import com.example.franchise.domain.enums.TechnicalMessage;
 import com.example.franchise.domain.exceptions.BusinessException;
 import com.example.franchise.domain.model.Product;
 import com.example.franchise.infrastructure.entrypoints.dto.ProductCreateDTO;
+import com.example.franchise.infrastructure.entrypoints.dto.ProductStockUpdateDTO;
 import com.example.franchise.infrastructure.entrypoints.mapper.ProductMapper;
 import com.example.franchise.infrastructure.entrypoints.util.APIResponse;
+import com.example.franchise.infrastructure.entrypoints.util.Constants;
 import com.example.franchise.infrastructure.entrypoints.util.ErrorDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,20 +34,16 @@ public class ProductHandler {
     private final ProductServicePort productService;
     private final ProductMapper mapper;
 
-    /**
-     * POST /franchises/{franchiseId}/branches/{branchId}/products
-     */
     public Mono<ServerResponse> createProduct(ServerRequest request) {
         String messageId = getMessageIdOrGenerate(request);
 
-        return Mono.defer(() -> Mono.just(request.pathVariable("branchId")))
+        return Mono.defer(() -> Mono.just(request.pathVariable(Constants.BRANCH_ID)))
                 .map(Long::valueOf)
                 .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.BRANCH_NOT_FOUND)))
                 .zipWith(request.bodyToMono(ProductCreateDTO.class))
                 .map(tuple -> {
                     Long branchId = tuple.getT1();
                     ProductCreateDTO dto = tuple.getT2();
-                    // Domain record assumed: Product(Long id, Long branchId, String name, Integer stock)
                     return new Product(null, branchId, dto.getName(), dto.getStock());
                 })
                 .flatMap(p -> productService.createProduct(p.branchId(), p))
@@ -63,7 +61,6 @@ public class ProductHandler {
                                         .build())
                 )
                 .contextWrite(Context.of(X_MESSAGE_ID, messageId))
-                // 409 when unique (branch_id, name) violates
                 .onErrorResume(DuplicateKeyException.class, ex ->
                         buildErrorResponse(
                                 HttpStatus.CONFLICT,
@@ -99,7 +96,101 @@ public class ProductHandler {
                 ));
     }
 
-    private Mono<ServerResponse> buildErrorResponse(HttpStatus status,
+    public Mono<ServerResponse> deleteProduct(ServerRequest request) {
+        String messageId = getMessageIdOrGenerate(request);
+
+        Mono<Long> branchIdMono = Mono.defer(() -> Mono.just(request.pathVariable(Constants.BRANCH_ID)))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.BRANCH_NOT_FOUND)));
+
+        Mono<Long> productIdMono = Mono.defer(() -> Mono.just(request.pathVariable(Constants.PRODUCT_ID)))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.PRODUCT_NOT_FOUND)));
+
+        return Mono.zip(branchIdMono, productIdMono)
+                .flatMap(t -> productService.deleteProduct(t.getT1(), t.getT2()))
+                .doOnSuccess(v -> log.info("Product deleted successfully. messageId={}", messageId))
+                .doOnError(ex -> log.error("Error deleting product. messageId={}", messageId, ex))
+                .then(ServerResponse.ok().bodyValue(APIResponse.builder()
+                        .code(TechnicalMessage.PRODUCT_DELETED.getCode())
+                        .message(TechnicalMessage.PRODUCT_DELETED.getMessage())
+                        .identifier(messageId)
+                        .date(Instant.now().toString())
+                        .build()))
+                .contextWrite(Context.of(X_MESSAGE_ID, messageId))
+                .onErrorResume(BusinessException.class, ex ->
+                        buildErrorResponse(
+                                HttpStatus.valueOf(safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())),
+                                messageId,
+                                TechnicalMessage.INVALID_INPUT,
+                                List.of(ErrorDTO.builder()
+                                        .code(ex.getTechnicalMessage().getCode())
+                                        .message(ex.getTechnicalMessage().getMessage())
+                                        .param(ex.getTechnicalMessage().getParam())
+                                        .build())
+                        )
+                )
+                .onErrorResume(ex -> buildErrorResponse(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        messageId,
+                        TechnicalMessage.INTERNAL_ERROR,
+                        List.of(ErrorDTO.builder()
+                                .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                .build())
+                ));
+    }
+
+    public Mono<ServerResponse> updateStock(ServerRequest request) {
+        String messageId = getMessageIdOrGenerate(request);
+
+        Mono<Long> branchIdMono = Mono.defer(() -> Mono.just(request.pathVariable(Constants.BRANCH_ID)))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.BRANCH_NOT_FOUND)));
+
+        Mono<Long> productIdMono = Mono.defer(() -> Mono.just(request.pathVariable("productId")))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.PRODUCT_NOT_FOUND)));
+
+        Mono<ProductStockUpdateDTO> bodyMono = request.bodyToMono(ProductStockUpdateDTO.class);
+
+        return Mono.zip(branchIdMono, productIdMono, bodyMono)
+                .flatMap(t -> productService.updateStock(t.getT1(), t.getT2(), t.getT3().getStock()))
+                .doOnSuccess(p -> log.info("Stock updated successfully. messageId={}, productId={}, newStock={}",
+                        messageId, p.id(), p.stock()))
+                .doOnError(ex -> log.error("Error updating stock. messageId={}", messageId, ex))
+                .flatMap(product -> ServerResponse.ok().bodyValue(APIResponse.builder()
+                        .code(TechnicalMessage.PRODUCT_STOCK_UPDATED.getCode())
+                        .message(TechnicalMessage.PRODUCT_STOCK_UPDATED.getMessage())
+                        .identifier(messageId)
+                        .date(Instant.now().toString())
+                        .data(mapper.toDto(product))
+                        .build()))
+                .contextWrite(Context.of(X_MESSAGE_ID, messageId))
+                .onErrorResume(BusinessException.class, ex ->
+                        buildErrorResponse(
+                                HttpStatus.valueOf(safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())),
+                                messageId,
+                                TechnicalMessage.INVALID_INPUT,
+                                List.of(ErrorDTO.builder()
+                                        .code(ex.getTechnicalMessage().getCode())
+                                        .message(ex.getTechnicalMessage().getMessage())
+                                        .param(ex.getTechnicalMessage().getParam())
+                                        .build())
+                        )
+                )
+                .onErrorResume(ex -> buildErrorResponse(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        messageId,
+                        TechnicalMessage.INTERNAL_ERROR,
+                        List.of(ErrorDTO.builder()
+                                .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                .build())
+                ));
+    }
+
+        private Mono<ServerResponse> buildErrorResponse(HttpStatus status,
                                                     String identifier,
                                                     TechnicalMessage envelope,
                                                     List<ErrorDTO> errors) {

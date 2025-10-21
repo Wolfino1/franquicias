@@ -5,4 +5,6 @@ import reactor.core.publisher.Mono;
 
 public interface ProductServicePort {
     Mono <Product> createProduct (Long branchId, Product product);
+    Mono<Void> deleteProduct(Long branchId, Long productId);
+    Mono<Product> updateStock(Long branchId, Long productId, Integer newStock);
 }

@@ -19,7 +19,10 @@ public enum TechnicalMessage {
     PRODUCT_ALREADY_EXISTS("409", "Product name already exists for this branch", "name"),
     INVALID_PRODUCT_NAME("400", "Invalid product name", "name"),
     INVALID_STOCK("400", "Invalid stock value", "stock"),
-    PRODUCT_NOT_FOUND("404", "Product not found", "productId");
+    PRODUCT_NOT_FOUND("404", "Product not found", "productId"),
+    PRODUCT_NOT_IN_BRANCH("404", "Product not found", "productId"),
+    PRODUCT_DELETED("200", "Product deleted successfully", ""),
+    PRODUCT_STOCK_UPDATED("200", "Product stock updated successfully", "");
 
     private final String code;
     private final String message;
