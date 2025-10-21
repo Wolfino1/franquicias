@@ -1,0 +1,103 @@
+spring:
+  application:
+    name: franchise-api
+  main:
+    web-application-type: reactive
+  jackson:
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+
+management:
+  tracing:
+    sampling:
+      probability: 0.0
+    baggage:
+      correlation:
+        fields:
+          - messageId
+          - x-message-id
+      remote-fields: messageId,x-message-id
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,loggers,info
+      base-path: /
+      path-mapping:
+        health: actuator/health
+        metrics: actuator/metrics
+        loggers: actuator/loggers
+        info: actuator/info
+  endpoint:
+    health:
+      show-details: "always"
+  health:
+    circuitbreakers:
+      enabled: true
+    r2dbc:
+      enabled: true
+    diskspace:
+      enabled: false
+    ping:
+      enabled: false
+    refresh:
+      enabled: false
+
+resilience4j:
+  circuitbreaker:
+    circuit-breaker-aspect-order: 1
+    configs:
+      default:
+        register-health-indicator: true
+    instances:
+      defaultCb:
+        base-config: default
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        sliding-window-size: 5
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 25s
+        max-wait-duration-in-half-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: false
+        record-exceptions:
+          - java.util.concurrent.TimeoutException
+        ignore-exceptions:
+          - com.example.franchise.domain.exceptions.BusinessException
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 2s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2.0
+        maxWaitDuration: 10s
+        initialInterval: 500ms
+    instances:
+      defaultRetry:
+        maxAttempts: 5
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 1.5
+        maxWaitDuration: 10s
+        initialInterval: 500ms
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 10
+        maxWaitDuration: 500ms
+    instances:
+      defaultBulkhead:
+        maxConcurrentCalls: 5
+        maxWaitDuration: 1s
+
+logging:
+  level:
+    root: INFO
+    org.springframework.r2dbc: INFO
+    io.r2dbc: INFO
