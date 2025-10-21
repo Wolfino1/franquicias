@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
-import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
+import static org.springframework.web.reactive.function.server.RequestPredicates.*;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
 @Configuration
@@ -20,7 +20,8 @@ public class FranchiseRouter {
                                                           ProductHandler productHandler) {
         return route(POST("/franchises"), franchiseHandler::createFranchise)
                 .andRoute(POST("/franchises/{franchiseId}/branches"), branchHandler::createBranch)
-                .andRoute(POST("/branches/{branchId}/products"), productHandler::createProduct);
-
+                .andRoute(POST("/branches/{branchId}/products"), productHandler::createProduct)
+                .andRoute(DELETE("/branches/{branchId}/products/{productId}"), productHandler::deleteProduct)
+                .andRoute(PATCH("/branches/{branchId}/products/{productId}/stock"), productHandler::updateStock);
     }
 }
