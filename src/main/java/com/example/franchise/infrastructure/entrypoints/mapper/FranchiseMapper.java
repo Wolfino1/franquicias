@@ -8,12 +8,10 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface FranchiseMapper {
 
-    // DTO -> Domain
     @Mapping(target = "id", source = "id")
     @Mapping(target = "name", source = "name")
     Franchise toModel(FranchiseDTO dto);
 
-    // Domain -> DTO
     @Mapping(target = "id", source = "id")
     @Mapping(target = "name", source = "name")
     FranchiseDTO toDto(Franchise model);

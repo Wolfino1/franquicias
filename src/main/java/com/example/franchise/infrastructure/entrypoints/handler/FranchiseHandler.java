@@ -5,6 +5,7 @@ import com.example.franchise.domain.enums.TechnicalMessage;
 import com.example.franchise.domain.exceptions.BusinessException;
 import com.example.franchise.infrastructure.entrypoints.dto.FranchiseDTO;
 import com.example.franchise.infrastructure.entrypoints.mapper.FranchiseMapper;
+import com.example.franchise.infrastructure.entrypoints.mapper.TopProductPerBranchMapper;
 import com.example.franchise.infrastructure.entrypoints.util.APIResponse;
 import com.example.franchise.infrastructure.entrypoints.util.ErrorDTO;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class FranchiseHandler {
 
     private final FranchiseServicePort franchiseService;
     private final FranchiseMapper mapper;
+    private final TopProductPerBranchMapper topMapper;
     private final Validator validator;
 
     public Mono<ServerResponse> createFranchise(ServerRequest request) {
@@ -67,6 +69,55 @@ public class FranchiseHandler {
                                         .build())))
                 .onErrorResume(ex -> {
                     log.error("Unexpected error occurred for messageId: {}", messageId, ex);
+                    return buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            messageId,
+                            TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder()
+                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                    .build()));
+                });
+    }
+
+    public Mono<ServerResponse> getTopProductsByBranch(ServerRequest request) {
+        String messageId = getMessageId(request);
+
+        return Mono.defer(() -> Mono.just(request.pathVariable("franchiseId")))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.FRANCHISE_NOT_FOUND)))
+                .flatMapMany(franchiseId -> franchiseService.getTopProductsByBranch(franchiseId))
+                .map(topMapper::toDto)
+                .collectList()
+                .doOnSuccess(list -> log.info("Top products fetched. messageId={}, count={}", messageId, list.size()))
+                .doOnError(ex -> log.error(FRANCHISE_ERROR, ex))
+                .flatMap(list -> ServerResponse.ok().bodyValue(
+                        APIResponse.builder()
+                                .code(TechnicalMessage.TOP_PRODUCTS_BY_BRANCH.getCode()) // crea este enum si no existe
+                                .message(TechnicalMessage.TOP_PRODUCTS_BY_BRANCH.getMessage())
+                                .identifier(messageId)
+                                .date(Instant.now().toString())
+                                .data(list)
+                                .build()
+                ))
+                .contextWrite(ctx -> {
+                    String mid = messageId;
+                    return (mid == null || mid.isBlank()) ? ctx : ctx.put(X_MESSAGE_ID, mid);
+                })
+                .onErrorResume(BusinessException.class, ex ->
+                        buildErrorResponse(
+                                HttpStatus.valueOf(
+                                        safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())
+                                ),
+                                messageId,
+                                TechnicalMessage.INVALID_INPUT,
+                                List.of(ErrorDTO.builder()
+                                        .code(ex.getTechnicalMessage().getCode())
+                                        .message(ex.getTechnicalMessage().getMessage())
+                                        .param(ex.getTechnicalMessage().getParam())
+                                        .build())))
+                .onErrorResume(ex -> {
+                    log.error("Unexpected error in top-products. messageId={}", messageId, ex);
                     return buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             messageId,

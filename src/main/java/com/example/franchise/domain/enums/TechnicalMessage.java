@@ -22,7 +22,9 @@ public enum TechnicalMessage {
     PRODUCT_NOT_FOUND("404", "Product not found", "productId"),
     PRODUCT_NOT_IN_BRANCH("404", "Product not found", "productId"),
     PRODUCT_DELETED("200", "Product deleted successfully", ""),
-    PRODUCT_STOCK_UPDATED("200", "Product stock updated successfully", "");
+    PRODUCT_STOCK_UPDATED("200", "Product stock updated successfully", ""),
+    TOP_PRODUCTS_BY_BRANCH("200", "Top products by branch retrieved successfully", "");
+
 
     private final String code;
     private final String message;

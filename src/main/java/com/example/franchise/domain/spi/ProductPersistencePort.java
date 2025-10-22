@@ -9,5 +9,6 @@ public interface ProductPersistencePort {
     Mono<Product> findById(Long productId);
     Mono<Void> deleteById(Long productId);
     Mono<Product> updateStock(Long productId, Integer stock);
+    Mono<Product> findTopByBranchIdOrderByStockDesc(Long branchId);
 
 }
