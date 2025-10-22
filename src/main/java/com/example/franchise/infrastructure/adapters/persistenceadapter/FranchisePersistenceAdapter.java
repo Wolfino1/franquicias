@@ -30,4 +30,16 @@ public class FranchisePersistenceAdapter implements FranchisePersistencePort {
     public Mono<Boolean> existsById(Long franchiseId) {
         return repository.existsById(franchiseId);
     }
+
+    @Override
+    public Mono<Franchise> updateName(Long id, String newName) {
+        return repository.findById(id)
+                .switchIfEmpty(Mono.empty())
+                .flatMap(entity -> {
+                    entity.setName(newName);
+                    return repository.save(entity);
+                })
+                .map(mapper::toModel);
+    }
+
 }
