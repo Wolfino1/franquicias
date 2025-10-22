@@ -16,8 +16,10 @@ import org.springframework.context.annotation.Configuration;
 public class UseCaseConfig {
 
         @Bean
-        public FranchiseServicePort franchiseServicePort(FranchisePersistencePort franchisePersistencePort) {
-                return new FranchiseUseCase(franchisePersistencePort);
+        public FranchiseServicePort franchiseServicePort(FranchisePersistencePort franchisePort,
+                                                         BranchPersistencePort branchPort,
+                                                         ProductPersistencePort productPort) {
+                return new FranchiseUseCase(franchisePort, branchPort, productPort);
         }
 
         @Bean

@@ -6,4 +6,5 @@ import reactor.core.publisher.Mono;
 
 public interface ProductRepository extends ReactiveCrudRepository<ProductEntity, Long> {
     Mono<Boolean> existsByBranchIdAndName(Long branchId, String name);
+    Mono<ProductEntity> findFirstByBranchIdOrderByStockDesc(Long branchId);
 }

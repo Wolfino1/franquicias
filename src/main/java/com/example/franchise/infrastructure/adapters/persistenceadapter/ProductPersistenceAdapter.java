@@ -46,4 +46,9 @@ public class ProductPersistenceAdapter implements ProductPersistencePort {
                 })
                 .map(mapper::toModel);
     }
+    @Override
+    public Mono<Product> findTopByBranchIdOrderByStockDesc(Long branchId) {
+        return repository.findFirstByBranchIdOrderByStockDesc(branchId)
+                .map(mapper::toModel);
+    }
 }

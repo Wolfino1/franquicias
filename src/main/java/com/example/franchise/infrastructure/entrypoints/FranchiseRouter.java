@@ -22,6 +22,7 @@ public class FranchiseRouter {
                 .andRoute(POST("/franchises/{franchiseId}/branches"), branchHandler::createBranch)
                 .andRoute(POST("/branches/{branchId}/products"), productHandler::createProduct)
                 .andRoute(DELETE("/branches/{branchId}/products/{productId}"), productHandler::deleteProduct)
-                .andRoute(PATCH("/branches/{branchId}/products/{productId}/stock"), productHandler::updateStock);
+                .andRoute(PATCH("/branches/{branchId}/products/{productId}/stock"), productHandler::updateStock)
+                .andRoute(GET("/franchises/{franchiseId}/top-products"), franchiseHandler::getTopProductsByBranch);
     }
 }
