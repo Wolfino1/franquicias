@@ -16,7 +16,7 @@ import org.springframework.validation.Validator;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
-import reactor.util.context.Context;
+import com.example.franchise.infrastructure.entrypoints.dto.FranchiseRenameDTO;
 
 import java.time.Instant;
 import java.util.List;
@@ -118,6 +118,58 @@ public class FranchiseHandler {
                                         .build())))
                 .onErrorResume(ex -> {
                     log.error("Unexpected error in top-products. messageId={}", messageId, ex);
+                    return buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            messageId,
+                            TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder()
+                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                    .build()));
+                });
+    }
+
+    public Mono<ServerResponse> renameFranchise(ServerRequest request) {
+        String messageId = getMessageId(request);
+
+        return Mono.defer(() -> Mono.just(request.pathVariable("id")))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.FRANCHISE_NOT_FOUND)))
+                .zipWith(request.bodyToMono(FranchiseRenameDTO.class))
+                .flatMap(tuple -> {
+                    Long id = tuple.getT1();
+                    String newName = tuple.getT2().getName();
+                    return franchiseService.renameFranchise(id, newName);
+                })
+                .doOnSuccess(franchise -> log.info("Franchise renamed successfully. messageId={}, franchiseId={}", messageId, franchise.id()))
+                .doOnError(ex -> log.error(FRANCHISE_ERROR, ex))
+                .flatMap(franchise -> ServerResponse.ok().bodyValue(
+                        APIResponse.builder()
+                                .code(TechnicalMessage.FRANCHISE_RENAMED.getCode())
+                                .message(TechnicalMessage.FRANCHISE_RENAMED.getMessage())
+                                .identifier(messageId)
+                                .date(Instant.now().toString())
+                                .data(mapper.toDto(franchise))
+                                .build()
+                ))
+                .contextWrite(ctx -> {
+                    String mid = messageId;
+                    return (mid == null || mid.isBlank()) ? ctx : ctx.put(X_MESSAGE_ID, mid);
+                })
+                .onErrorResume(BusinessException.class, ex ->
+                        buildErrorResponse(
+                                HttpStatus.valueOf(
+                                        safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())
+                                ),
+                                messageId,
+                                TechnicalMessage.INVALID_INPUT,
+                                List.of(ErrorDTO.builder()
+                                        .code(ex.getTechnicalMessage().getCode())
+                                        .message(ex.getTechnicalMessage().getMessage())
+                                        .param(ex.getTechnicalMessage().getParam())
+                                        .build())))
+                .onErrorResume(ex -> {
+                    log.error("Unexpected error occurred in renameFranchise. messageId: {}", messageId, ex);
                     return buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             messageId,

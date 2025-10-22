@@ -44,6 +44,8 @@ public class FranchiseUseCase implements FranchiseServicePort {
             return Flux.error(new BusinessException(TechnicalMessage.FRANCHISE_NOT_FOUND));
         }
 
+
+
         return franchisePort.existsById(franchiseId)
                 .flatMapMany(exists -> exists
                         ? branchPort.findByFranchiseId(franchiseId)
@@ -55,6 +57,26 @@ public class FranchiseUseCase implements FranchiseServicePort {
                                 .switchIfEmpty(Mono.empty()) // si no hay productos en la sucursal, no se emite nada
                 );
     }
+
+    @Override
+    public Mono<Franchise> renameFranchise(Long id, String newName) {
+        if (id == null || id <= 0) {
+            return Mono.error(new BusinessException(TechnicalMessage.FRANCHISE_NOT_FOUND));
+        }
+        if (Constants.isBlank(newName) || newName.length() > Constants.NAME_MAX_LENGTH) {
+            return Mono.error(new BusinessException(TechnicalMessage.INVALID_FRANCHISE_NAME));
+        }
+
+        return franchisePort.existsById(id)
+                .flatMap(exists -> exists
+                        ? Mono.just(true)
+                        : Mono.error(new BusinessException(TechnicalMessage.FRANCHISE_NOT_FOUND)))
+                .then(franchisePort.existsByName(newName))
+                .flatMap(dup -> dup
+                        ? Mono.error(new BusinessException(TechnicalMessage.FRANCHISE_ALREADY_EXISTS))
+                        : franchisePort.updateName(id, newName));
+    }
+
 
     private TopProductPerBranch toTop(Branch branch, Product product) {
         return new TopProductPerBranch(
