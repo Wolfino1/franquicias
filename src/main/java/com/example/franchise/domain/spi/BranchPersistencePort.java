@@ -9,4 +9,6 @@ public interface BranchPersistencePort {
     Mono<Branch> save(Branch branch);
     Mono<Boolean> existsById(Long branchId);
     Flux<Branch> findByFranchiseId(Long franchiseId);
+    Mono<Branch> findById(Long id);
+    Mono<Branch> updateName(Long id, String newName);
 }

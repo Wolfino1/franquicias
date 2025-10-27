@@ -24,7 +24,9 @@ public enum TechnicalMessage {
     PRODUCT_DELETED("200", "Product deleted successfully", ""),
     PRODUCT_STOCK_UPDATED("200", "Product stock updated successfully", ""),
     TOP_PRODUCTS_BY_BRANCH("200", "Top products by branch retrieved successfully", ""),
-    FRANCHISE_RENAMED("200", "Franchise renamed successfully", "");
+    FRANCHISE_RENAMED("200", "Franchise renamed successfully", ""),
+    BRANCH_RENAMED("200", "Branch renamed successfully", ""),
+    PRODUCT_RENAMED("200", "Product renamed successfully", "");
 
 
 

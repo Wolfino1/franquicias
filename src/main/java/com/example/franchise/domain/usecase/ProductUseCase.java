@@ -68,6 +68,28 @@ public class ProductUseCase implements ProductServicePort {
                 });
     }
 
+    @Override
+    public Mono<Product> renameProduct(Long productId, String newName) {
+        if (productId == null || productId <= 0) {
+            return Mono.error(new BusinessException(TechnicalMessage.PRODUCT_NOT_FOUND));
+        }
+        if (Constants.isBlank(newName) || newName.length() > Constants.NAME_MAX_LENGTH) {
+            return Mono.error(new BusinessException(TechnicalMessage.INVALID_PRODUCT_NAME));
+        }
+
+        return productPort.findById(productId)
+                .switchIfEmpty(Mono.error(new BusinessException(TechnicalMessage.PRODUCT_NOT_FOUND)))
+                .flatMap(current -> {
+                    if (newName.equals(current.name())) {
+                        return Mono.just(current);
+                    }
+                    return productPort.existsByBranchAndName(current.branchId(), newName)
+                            .flatMap(dup -> dup
+                                    ? Mono.error(new BusinessException(TechnicalMessage.PRODUCT_ALREADY_EXISTS))
+                                    : productPort.updateName(productId, newName));
+                });
+    }
+
     private Mono<Void> validateIds(Long branchId, Long productId) {
         if (branchId == null || branchId <= 0) {
             return Mono.error(new BusinessException(TechnicalMessage.BRANCH_NOT_FOUND));

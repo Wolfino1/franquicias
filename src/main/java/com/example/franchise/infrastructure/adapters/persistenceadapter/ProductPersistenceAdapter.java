@@ -1,5 +1,6 @@
 package com.example.franchise.infrastructure.adapters.persistenceadapter;
 
+import com.example.franchise.domain.model.Franchise;
 import com.example.franchise.domain.model.Product;
 import com.example.franchise.domain.spi.ProductPersistencePort;
 import com.example.franchise.infrastructure.adapters.persistenceadapter.mapper.ProductEntityMapper;
@@ -49,6 +50,17 @@ public class ProductPersistenceAdapter implements ProductPersistencePort {
     @Override
     public Mono<Product> findTopByBranchIdOrderByStockDesc(Long branchId) {
         return repository.findFirstByBranchIdOrderByStockDesc(branchId)
+                .map(mapper::toModel);
+    }
+
+    @Override
+    public Mono<Product> updateName(Long id, String newName) {
+        return repository.findById(id)
+                .switchIfEmpty(Mono.empty())
+                .flatMap(entity -> {
+                    entity.setName(newName);
+                    return repository.save(entity);
+                })
                 .map(mapper::toModel);
     }
 }
