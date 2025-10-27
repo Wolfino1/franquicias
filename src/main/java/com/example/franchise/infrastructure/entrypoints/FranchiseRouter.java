@@ -24,6 +24,8 @@ public class FranchiseRouter {
                 .andRoute(DELETE("/branches/{branchId}/products/{productId}"), productHandler::deleteProduct)
                 .andRoute(PATCH("/branches/{branchId}/products/{productId}/stock"), productHandler::updateStock)
                 .andRoute(GET("/franchises/{franchiseId}/top-products"), franchiseHandler::getTopProductsByBranch)
-                .andRoute(PATCH("/franchises/{id}/name"), franchiseHandler::renameFranchise);
+                .andRoute(PATCH("/franchises/{id}/name"), franchiseHandler::renameFranchise)
+                .andRoute(PATCH("/branches/{id}/name"), branchHandler::renameBranch)
+                .andRoute(PATCH("/products/{id}/name"), productHandler::renameProduct);
     }
 }

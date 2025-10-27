@@ -5,6 +5,7 @@ import com.example.franchise.domain.enums.TechnicalMessage;
 import com.example.franchise.domain.exceptions.BusinessException;
 import com.example.franchise.domain.model.Product;
 import com.example.franchise.infrastructure.entrypoints.dto.ProductCreateDTO;
+import com.example.franchise.infrastructure.entrypoints.dto.ProductRenameDTO;
 import com.example.franchise.infrastructure.entrypoints.dto.ProductStockUpdateDTO;
 import com.example.franchise.infrastructure.entrypoints.mapper.ProductMapper;
 import com.example.franchise.infrastructure.entrypoints.util.APIResponse;
@@ -167,6 +168,57 @@ public class ProductHandler {
                         .data(mapper.toDto(product))
                         .build()))
                 .contextWrite(Context.of(X_MESSAGE_ID, messageId))
+                .onErrorResume(BusinessException.class, ex ->
+                        buildErrorResponse(
+                                HttpStatus.valueOf(safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())),
+                                messageId,
+                                TechnicalMessage.INVALID_INPUT,
+                                List.of(ErrorDTO.builder()
+                                        .code(ex.getTechnicalMessage().getCode())
+                                        .message(ex.getTechnicalMessage().getMessage())
+                                        .param(ex.getTechnicalMessage().getParam())
+                                        .build())
+                        )
+                )
+                .onErrorResume(ex -> buildErrorResponse(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        messageId,
+                        TechnicalMessage.INTERNAL_ERROR,
+                        List.of(ErrorDTO.builder()
+                                .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                .build())
+                ));
+    }
+
+    public Mono<ServerResponse> renameProduct(ServerRequest request) {
+        String messageId = getMessageIdOrGenerate(request);
+
+        Mono<Long> productIdMono = Mono.defer(() -> Mono.just(request.pathVariable("id")))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.PRODUCT_NOT_FOUND)));
+
+        Mono<ProductRenameDTO> bodyMono = request.bodyToMono(ProductRenameDTO.class);
+
+        return Mono.zip(productIdMono, bodyMono)
+                .flatMap(tuple -> {
+                    Long productId = tuple.getT1();
+                    String newName = tuple.getT2().getName();
+                    return productService.renameProduct(productId, newName);
+                })
+                .doOnSuccess(p -> log.info("Product renamed successfully. messageId={}, productId={}",
+                        messageId, p.id()))
+                .doOnError(ex -> log.error("Error renaming product. messageId={}", messageId, ex))
+                .flatMap(product -> ServerResponse.ok().bodyValue(
+                        APIResponse.builder()
+                                .code(TechnicalMessage.PRODUCT_RENAMED.getCode())
+                                .message(TechnicalMessage.PRODUCT_RENAMED.getMessage())
+                                .identifier(messageId)
+                                .date(Instant.now().toString())
+                                .data(mapper.toDto(product))
+                                .build()
+                ))
+                .contextWrite(ctx -> (messageId == null || messageId.isBlank()) ? ctx : ctx.put(X_MESSAGE_ID, messageId))
                 .onErrorResume(BusinessException.class, ex ->
                         buildErrorResponse(
                                 HttpStatus.valueOf(safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())),

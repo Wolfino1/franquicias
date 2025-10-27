@@ -5,6 +5,7 @@ import com.example.franchise.domain.enums.TechnicalMessage;
 import com.example.franchise.domain.exceptions.BusinessException;
 import com.example.franchise.domain.model.Branch;
 import com.example.franchise.infrastructure.entrypoints.dto.BranchCreateDTO;
+import com.example.franchise.infrastructure.entrypoints.dto.BranchRenameDTO;
 import com.example.franchise.infrastructure.entrypoints.mapper.BranchMapper;
 import com.example.franchise.infrastructure.entrypoints.util.APIResponse;
 import com.example.franchise.infrastructure.entrypoints.util.ErrorDTO;
@@ -57,6 +58,54 @@ public class BranchHandler {
                                         .build())
                 )
                 .contextWrite(Context.of(X_MESSAGE_ID, messageId))
+                .onErrorResume(BusinessException.class, ex ->
+                        buildErrorResponse(
+                                HttpStatus.valueOf(safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())),
+                                messageId,
+                                TechnicalMessage.INVALID_INPUT,
+                                List.of(ErrorDTO.builder()
+                                        .code(ex.getTechnicalMessage().getCode())
+                                        .message(ex.getTechnicalMessage().getMessage())
+                                        .param(ex.getTechnicalMessage().getParam())
+                                        .build())
+                        )
+                )
+                .onErrorResume(ex -> buildErrorResponse(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        messageId,
+                        TechnicalMessage.INTERNAL_ERROR,
+                        List.of(ErrorDTO.builder()
+                                .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                .build())
+                ));
+    }
+
+    public Mono<ServerResponse> renameBranch(ServerRequest request) {
+        String messageId = getMessageIdOrGenerate(request); // o getMessageId(request) si ese es tu helper
+
+        return Mono.defer(() -> Mono.just(request.pathVariable("id")))
+                .map(Long::valueOf)
+                .onErrorResume(e -> Mono.error(new BusinessException(TechnicalMessage.BRANCH_NOT_FOUND)))
+                .zipWith(request.bodyToMono(BranchRenameDTO.class))
+                .flatMap(tuple -> {
+                    Long id = tuple.getT1();
+                    String newName = tuple.getT2().getName();
+                    return branchService.renameBranch(id, newName);
+                })
+                .doOnSuccess(branch -> log.info("Branch renamed successfully. messageId={}, branchId={}",
+                        messageId, branch.id()))
+                .doOnError(ex -> log.error("Error renaming branch. messageId={}", messageId, ex))
+                .flatMap(branch -> ServerResponse.ok().bodyValue(
+                        APIResponse.builder()
+                                .code(TechnicalMessage.BRANCH_RENAMED.getCode())
+                                .message(TechnicalMessage.BRANCH_RENAMED.getMessage())
+                                .identifier(messageId)
+                                .date(Instant.now().toString())
+                                .data(mapper.toDto(branch))
+                                .build()
+                ))
+                .contextWrite(ctx -> (messageId == null || messageId.isBlank()) ? ctx : ctx.put(X_MESSAGE_ID, messageId))
                 .onErrorResume(BusinessException.class, ex ->
                         buildErrorResponse(
                                 HttpStatus.valueOf(safeParseStatus(ex.getTechnicalMessage().getCode(), HttpStatus.BAD_REQUEST.value())),
